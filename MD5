@@ -1,0 +1,12 @@
+fd0aa817d33ea0ab9ace59a5ddc7112b *DESCRIPTION
+e3b34535e356dda74465f4905a3963ef *NAMESPACE
+0620d09a39acb568fe62b1aa78d96453 *R/gelnet.R
+293eff6a8568a697c34b00b7ff4ec179 *man/L1.ceiling.Rd
+c16d98c1df9dc27ffcbcd36e4622bedd *man/adj2lapl.Rd
+c82e44e51bbb8af2788cd1f2c4d30240 *man/adj2nlapl.Rd
+ef8850d4dc8c473ef0b2572a36ed7a24 *man/gelnet.L1bin.Rd
+f2aa6c838f7777394beb8a1952ca92fc *man/gelnet.lin.Rd
+b81ec3629588ea2851af4456921acf60 *man/gelnet.lin.obj.Rd
+17183328ebca9a7954bc733baea75f48 *man/gelnet.logreg.Rd
+06de164a8a8fa643ea67adb2bc85615e *man/gelnet.logreg.obj.Rd
+09ed2b57adfe13a47af18de9e3ab98a2 *src/gelnet.c
