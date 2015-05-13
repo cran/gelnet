@@ -3,4 +3,5 @@ export( gelnet.lin, gelnet.lin.obj )
 export( gelnet.logreg, gelnet.logreg.obj )
 export( L1.ceiling, gelnet.L1bin )
 export( adj2lapl, adj2nlapl )
+export( gelnet.krr, gelnet.klr )
 

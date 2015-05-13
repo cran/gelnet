@@ -13,7 +13,7 @@ adj2lapl(A)
 The n-by-n Laplacian matrix of the graph
 }
 \description{
-Generates a graoh Laplacian from the graph adjacency matrix
+Generates a graph Laplacian from the graph adjacency matrix.
 }
 \details{
 A graph Laplacian is defined as:

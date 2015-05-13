@@ -10,7 +10,7 @@
 #' Computes the objective function value according to
 #' \deqn{ \frac{1}{2n} \sum_i a_i (z_i - (w^T x_i + b))^2 + R(w) }
 #'  where
-#' \deqn{ R(w) = \lambda_1 \sum_j d_j |w_j| + \frac{\lambda_2}{2} w^T P w }
+#' \deqn{ R(w) = \lambda_1 \sum_j d_j |w_j| + \frac{\lambda_2}{2} (w-m)^T P (w-m) }
 #'
 #' @param w p-by-1 vector of model weights
 #' @param b the model bias term
@@ -21,10 +21,11 @@
 #' @param a n-by-1 vector of sample weights
 #' @param d p-by-1 vector of feature weights
 #' @param P p-by-p feature-feature penalty matrix
+#' @param m p-by-1 vector of translation coefficients
 #' @return The objective function value.
 #' @seealso \code{\link{gelnet.lin}}
 gelnet.lin.obj <- function( w, b, X, z, lambda1, lambda2, a=rep(1,nrow(X)),
-                           d=rep(1,ncol(X)), P=diag(ncol(X)) )
+                           d=rep(1,ncol(X)), P=diag(ncol(X)), m=rep(0,ncol(X)) )
   {
     n <- nrow(X)
     p <- ncol(X)
@@ -33,7 +34,7 @@ gelnet.lin.obj <- function( w, b, X, z, lambda1, lambda2, a=rep(1,nrow(X)),
     r <- z - (X %*% w + b)
     L <- mean( a * r * r) / 2
     R1 <- lambda1 * t(d) %*% abs(w)
-    R2 <- lambda2 * t(w) %*% P %*% w / 2
+    R2 <- lambda2 * t(w-m) %*% P %*% (w-m) / 2
 
     L + R1 + R2
   }
@@ -47,7 +48,7 @@ gelnet.lin.obj <- function( w, b, X, z, lambda1, lambda2, a=rep(1,nrow(X)),
 #' \deqn{ -\frac{1}{n} \sum_i y_i s_i - \log( 1 + \exp(s_i) ) + R(w) }
 #'  where
 #' \deqn{ s_i = w^T x_i + b }
-#' \deqn{ R(w) = \lambda_1 \sum_j d_j |w_j| + \frac{\lambda_2}{2} w^T P w }
+#' \deqn{ R(w) = \lambda_1 \sum_j d_j |w_j| + \frac{\lambda_2}{2} (w-m)^T P (w-m) }
 #'
 #' @param w p-by-1 vector of model weights
 #' @param b the model bias term
@@ -57,15 +58,16 @@ gelnet.lin.obj <- function( w, b, X, z, lambda1, lambda2, a=rep(1,nrow(X)),
 #' @param lambda2 L2-norm penalty scaling factor
 #' @param d p-by-1 vector of feature weights
 #' @param P p-by-p feature-feature penalty matrix
+#' @param m p-by-1 vector of translation coefficients
 #' @return The objective function value.
 #' @seealso \code{\link{gelnet.logreg}}
-gelnet.logreg.obj <- function( w, b, X, y, lambda1, lambda2,
-                              d = rep(1,ncol(X)), P = diag(ncol(X)) )
+gelnet.logreg.obj <- function( w, b, X, y, lambda1, lambda2, d=rep(1,ncol(X)),
+                              P = diag(ncol(X)), m = rep(0,ncol(X)) )
   {
     stopifnot( sort(unique(y)) == c(0,1) )
     s <- X %*% w + b
     R1 <- lambda1 * t(d) %*% abs(w)
-    R2 <- lambda2 * t(w) %*% P %*% w / 2
+    R2 <- lambda2 * t(w-m) %*% P %*% (w-m) / 2
     LL <- mean( y * s - log(1+exp(s)) )
     R1 + R2 - LL
   }
@@ -107,6 +109,7 @@ L1.ceiling <- function( X, y, a = rep(1,nrow(X)), d = rep(1,ncol(X)) )
 #' @param a n-by-1 vector of sample weights
 #' @param d p-by-1 vector of feature weights
 #' @param P p-by-p feature association penalty matrix
+#' @param m p-by-1 vector of translation coefficients
 #' @param max.iter maximum number of iterations
 #' @param eps convergence precision
 #' @param w.init initial parameter estimate for the weights
@@ -119,7 +122,7 @@ L1.ceiling <- function( X, y, a = rep(1,nrow(X)), d = rep(1,ncol(X)) )
 #'   \item{b}{scalar, bias term for the linear model}
 #' }
 gelnet.lin <- function( X, y, l1, l2, a = rep(1,n), d = rep(1,p), P = diag(p),
-                       max.iter = 100, eps = 1e-5, w.init = rep(0,p),
+                       m=rep(0,p), max.iter = 100, eps = 1e-5, w.init = rep(0,p),
                        b.init = sum(a*y)/sum(a), fix.bias=FALSE, silent=FALSE )
   {
     n <- nrow(X)
@@ -130,6 +133,7 @@ gelnet.lin <- function( X, y, l1, l2, a = rep(1,n), d = rep(1,p), P = diag(p),
     stopifnot( length(a) == n )
     stopifnot( length(d) == p )
     stopifnot( all( dim(P) == c(p,p) ) )
+    stopifnot( length(m) == p )
     stopifnot( length(w.init) == p )
     stopifnot( length(b.init) == 1 )
     stopifnot( length(l1) == 1 )
@@ -145,12 +149,12 @@ gelnet.lin <- function( X, y, l1, l2, a = rep(1,n), d = rep(1,p), P = diag(p),
 
     ## Set the initial parameter estimates
     S <- X %*% w.init + b.init
-    Pw <- P %*% w.init
+    Pw <- P %*% (w.init - m)
 
     ## Call the C routine
     res <- .C( "gelnet_base_opt",
               as.double(X), as.double(y), as.double(a), as.double(d),
-              as.double(P), as.double(l1), as.double(l2),
+              as.double(P), as.double(m), as.double(l1), as.double(l2),
               as.double(S), as.double(Pw), as.integer(n), as.integer(p),
               as.integer(max.iter), as.double(eps), as.integer(fix.bias),
               w = as.double( w.init ), b = as.double(b.init), as.integer(silent) )
@@ -168,7 +172,7 @@ gelnet.lin <- function( X, y, l1, l2, a = rep(1,n), d = rep(1,p), P = diag(p),
 #' The method operates by constructing iteratively re-weighted least squares approximations
 #' of the log-likelihood loss function and then calling the linear regression routine
 #' to solve those approximations. The least squares approximations are obtained via the Taylor series
-#' expansion about the current parameter estimate.
+#' expansion about the current parameter estimates.
 #'
 #' @param X n-by-p matrix of n samples in p dimensions
 #' @param y n-by-1 vector of binary response labels
@@ -176,6 +180,7 @@ gelnet.lin <- function( X, y, l1, l2, a = rep(1,n), d = rep(1,p), P = diag(p),
 #' @param l2 coefficient for the L2-norm penalty
 #' @param d p-by-1 vector of feature weights
 #' @param P p-by-p feature association penalty matrix
+#' @param m p-by-1 vector of translation coefficients
 #' @param max.iter maximum number of iterations
 #' @param eps convergence precision
 #' @param w.init initial parameter estimate for the weights
@@ -187,7 +192,7 @@ gelnet.lin <- function( X, y, l1, l2, a = rep(1,n), d = rep(1,p), P = diag(p),
 #'   \item{b}{scalar, bias term for the linear model}
 #' }
 #' @seealso \code{\link{gelnet.lin}}
-gelnet.logreg <- function( X, y, l1, l2, d = rep(1,p), P = diag(p),
+gelnet.logreg <- function( X, y, l1, l2, d = rep(1,p), P = diag(p), m = rep(0,p),
                           max.iter = 100, eps = 1e-5, w.init = rep(0,p),
                           b.init = 0.5, silent = FALSE )
   {
@@ -217,11 +222,11 @@ gelnet.logreg <- function( X, y, l1, l2, d = rep(1,p), P = diag(p),
     
     ## Set the initial parameter estimates
     S <- X %*% w.init + b.init
-    Pw <- P %*% w.init
+    Pw <- P %*% (w.init - m)
 
     res <- .C( "gelnet_logreg_opt",
               as.double(X), as.integer(y), as.double(d), as.double(P),
-              as.double(l1), as.double(l2),
+              as.double(m), as.double(l1), as.double(l2),
               as.double(S), as.double(Pw), as.integer(n), as.integer(p),
               as.integer(max.iter), as.double(eps), w = as.double( w.init ),
               b = as.double(b.init), as.integer(silent) )
@@ -235,7 +240,7 @@ gelnet.logreg <- function( X, y, l1, l2, d = rep(1,p), P = diag(p),
 #' A GELnet model with a requested number of non-zero weights
 #'
 #' Binary search to find an L1 penalty parameter value that yields the desired
-#'   number of non-zero weights in a GELnet model
+#'   number of non-zero weights in a GELnet model.
 #'
 #' The method performs simple binary search starting in [0, l1s] and iteratively
 #' training a model using the provided \code{f.gelnet}. At each iteration, the
@@ -290,7 +295,7 @@ gelnet.L1bin <- function( f.gelnet, nF, l1s, max.iter=10 )
 
 #' Generate a graph Laplacian
 #'
-#' Generates a graoh Laplacian from the graph adjacency matrix
+#' Generates a graph Laplacian from the graph adjacency matrix.
 #'
 #' A graph Laplacian is defined as:
 #' \eqn{ l_{i,j} = deg( v_i ) }, if \eqn{ i = j };
@@ -318,7 +323,7 @@ adj2lapl <- function( A )
 
 #' Generate a normalized graph Laplacian
 #'
-#' Generates a normalized graoh Laplacian from the graph adjacency matrix
+#' Generates a normalized graph Laplacian from the graph adjacency matrix.
 #'
 #' A normalized graph Laplacian is defined as:
 #' \eqn{ l_{i,j} = 1 }, if \eqn{ i = j };
@@ -351,3 +356,121 @@ adj2nlapl <- function(A)
     res
   }
 
+#' Kernel ridge regression
+#'
+#' Learns a kernel ridge regression model.
+#'
+#' The entries in the kernel matrix K can be interpreted as dot products
+#' in some feature space \eqn{\phi}. The corresponding weight vector can be
+#' retrieved via \eqn{w = \sum_i v_i \phi(x_i)}. However, new samples can be
+#' classified without explicit access to the underlying feature space:
+#' \deqn{w^T \phi(x) + b = \sum_i v_i \phi^T (x_i) \phi(x) + b = \sum_i v_i K( x_i, x ) + b}
+#'
+#' @param K n-by-n matrix of pairwise kernel values over a set of n samples
+#' @param y n-by-1 vector of response values
+#' @param a n-by-1 vector of samples weights
+#' @param lambda scalar, regularization parameter
+#' @return A list with two elements:
+#' \describe{
+#'   \item{v}{n-by-1 vector of kernel weights}
+#'   \item{b}{scalar, bias term for the model}
+#' }
+gelnet.krr <- function( K, y, a, lambda )
+  {
+    ## Argument verification
+    n <- nrow(K)
+    stopifnot( length(y) == n )
+    stopifnot( length(a) == n )
+    stopifnot( is.null(dim(a)) )	## a must not be in matrix form
+
+    ## Set up the sample weights and kernalization of the bias term
+    A <- diag(a)
+    K1 <- rbind( K, 1 )
+    K0 <- cbind( rbind( K, 0 ), 0 )
+
+    ## Solve the optimization problem in closed form
+    m <- solve( K1 %*% A %*% t(K1) + lambda * n * K0, K1 %*% A %*% y )
+
+    ## Retrieve the weights and the bias term
+    list( v = m[1:n], b = m[n+1] )
+  }
+
+#' Kernel logistic regression
+#'
+#' Learns a kernel logistic regression model for a binary classification task
+#'
+#' The method operates by constructing iteratively re-weighted least squares approximations
+#' of the log-likelihood loss function and then calling the kernel ridge regression routine
+#' to solve those approximations. The least squares approximations are obtained via the Taylor series
+#' expansion about the current parameter estimates.
+#'
+#' 
+#' @param K n-by-n matrix of pairwise kernel values over a set of n samples
+#' @param y n-by-1 vector of binary response labels
+#' @param lambda scalar, regularization parameter
+#' @param max.iter maximum number of iterations
+#' @param eps convergence precision
+#' @param v.init initial parameter estimate for the kernel weights
+#' @param b.init initial parameter estimate for the bias term
+#' @return A list with two elements:
+#' \describe{
+#'   \item{v}{n-by-1 vector of kernel weights}
+#'   \item{b}{scalar, bias term for the model}
+#' }
+#' @seealso \code{\link{gelnet.krr}}
+gelnet.klr <- function( K, y, lambda, max.iter = 100, eps = 1e-5,
+                       v.init=rep(0,nrow(K)), b.init=0.5 )
+  {
+    ## Argument verification
+    stopifnot( sort(unique(y)) == c(0,1) )
+    stopifnot( nrow(K) == ncol(K) )
+    stopifnot( nrow(K) == length(y) )
+
+    ## Objective function to minimize
+    fobj <- function( v, b )
+      {
+        s <- K %*% v + b
+        R2 <- lambda * t(v) %*% K %*% v / 2
+        LL <- mean( y * s - log(1+exp(s)) )
+        R2 - LL
+      }
+
+    ## Compute the initial objective value
+    v <- v.init
+    b <- b.init
+    fprev <- fobj( v, b )
+
+    ## Reduce kernel logistic regression to kernel regression
+    ##  about the current Taylor method estimates
+    for( iter in 1:max.iter )
+      {
+        cat( "Iteration", iter, ": " )
+        cat( "f =", fprev, "\n" )
+        
+        ## Compute the current fit
+        s <- drop(K %*% v + b)
+        pr <- 1 / (1 + exp(-s))
+
+        ## Snap probabilities to 0 and 1 to avoid division by small numbers
+        j0 <- which( pr < eps )
+        j1 <- which( pr > (1-eps) )
+        pr[j0] <- 0; pr[j1] <- 1
+
+        ## Compute the sample weights and the response
+        a <- pr * (1-pr)
+        a[c(j0,j1)] <- eps
+        z <- s + (y - pr) / a
+
+        ## Run the coordinate descent for the resulting regression problem
+        m <- gelnet.krr( K, z, a, lambda )
+        v <- m$v
+        b <- m$b
+
+        ## Evaluate the objective function and check convergence criteria
+        f <- fobj( v, b )
+        if( abs(f - fprev) / abs(fprev) < eps ) break
+        else fprev <- f
+      }
+
+    list( v = v, b = b )
+  }

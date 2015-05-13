@@ -4,8 +4,9 @@
 \alias{gelnet.logreg}
 \title{GELnet for logistic regression}
 \usage{
-gelnet.logreg(X, y, l1, l2, d = rep(1, p), P = diag(p), max.iter = 100,
-  eps = 1e-05, w.init = rep(0, p), b.init = 0.5, silent = FALSE)
+gelnet.logreg(X, y, l1, l2, d = rep(1, p), P = diag(p), m = rep(0, p),
+  max.iter = 100, eps = 1e-05, w.init = rep(0, p), b.init = 0.5,
+  silent = FALSE)
 }
 \arguments{
 \item{X}{n-by-p matrix of n samples in p dimensions}
@@ -19,6 +20,8 @@ gelnet.logreg(X, y, l1, l2, d = rep(1, p), P = diag(p), max.iter = 100,
 \item{d}{p-by-1 vector of feature weights}
 
 \item{P}{p-by-p feature association penalty matrix}
+
+\item{m}{p-by-1 vector of translation coefficients}
 
 \item{max.iter}{maximum number of iterations}
 
@@ -44,7 +47,7 @@ Constructs a GELnet model for logistic regression using the Newton method.
 The method operates by constructing iteratively re-weighted least squares approximations
 of the log-likelihood loss function and then calling the linear regression routine
 to solve those approximations. The least squares approximations are obtained via the Taylor series
-expansion about the current parameter estimate.
+expansion about the current parameter estimates.
 }
 \seealso{
 \code{\link{gelnet.lin}}

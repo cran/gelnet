@@ -5,7 +5,7 @@
 \title{Logistic regression objective function value}
 \usage{
 gelnet.logreg.obj(w, b, X, y, lambda1, lambda2, d = rep(1, ncol(X)),
-  P = diag(ncol(X)))
+  P = diag(ncol(X)), m = rep(0, ncol(X)))
 }
 \arguments{
 \item{w}{p-by-1 vector of model weights}
@@ -23,6 +23,8 @@ gelnet.logreg.obj(w, b, X, y, lambda1, lambda2, d = rep(1, ncol(X)),
 \item{d}{p-by-1 vector of feature weights}
 
 \item{P}{p-by-p feature-feature penalty matrix}
+
+\item{m}{p-by-1 vector of translation coefficients}
 }
 \value{
 The objective function value.
@@ -34,7 +36,7 @@ Computes the objective function value according to
 \deqn{ -\frac{1}{n} \sum_i y_i s_i - \log( 1 + \exp(s_i) ) + R(w) }
  where
 \deqn{ s_i = w^T x_i + b }
-\deqn{ R(w) = \lambda_1 \sum_j d_j |w_j| + \frac{\lambda_2}{2} w^T P w }
+\deqn{ R(w) = \lambda_1 \sum_j d_j |w_j| + \frac{\lambda_2}{2} (w-m)^T P (w-m) }
 }
 \seealso{
 \code{\link{gelnet.logreg}}

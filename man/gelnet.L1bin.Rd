@@ -27,7 +27,7 @@ L1-norm parameter. Returned as a list with three elements:
 }
 \description{
 Binary search to find an L1 penalty parameter value that yields the desired
-  number of non-zero weights in a GELnet model
+  number of non-zero weights in a GELnet model.
 }
 \details{
 The method performs simple binary search starting in [0, l1s] and iteratively

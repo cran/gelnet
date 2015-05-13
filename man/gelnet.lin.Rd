@@ -5,8 +5,8 @@
 \title{GELnet for linear regression}
 \usage{
 gelnet.lin(X, y, l1, l2, a = rep(1, n), d = rep(1, p), P = diag(p),
-  max.iter = 100, eps = 1e-05, w.init = rep(0, p), b.init = sum(a *
-  y)/sum(a), fix.bias = FALSE, silent = FALSE)
+  m = rep(0, p), max.iter = 100, eps = 1e-05, w.init = rep(0, p),
+  b.init = sum(a * y)/sum(a), fix.bias = FALSE, silent = FALSE)
 }
 \arguments{
 \item{X}{n-by-p matrix of n samples in p dimensions}
@@ -22,6 +22,8 @@ gelnet.lin(X, y, l1, l2, a = rep(1, n), d = rep(1, p), P = diag(p),
 \item{d}{p-by-1 vector of feature weights}
 
 \item{P}{p-by-p feature association penalty matrix}
+
+\item{m}{p-by-1 vector of translation coefficients}
 
 \item{max.iter}{maximum number of iterations}
 

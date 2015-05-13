@@ -5,7 +5,7 @@
 \title{Linear regression objective function value}
 \usage{
 gelnet.lin.obj(w, b, X, z, lambda1, lambda2, a = rep(1, nrow(X)), d = rep(1,
-  ncol(X)), P = diag(ncol(X)))
+  ncol(X)), P = diag(ncol(X)), m = rep(0, ncol(X)))
 }
 \arguments{
 \item{w}{p-by-1 vector of model weights}
@@ -25,6 +25,8 @@ gelnet.lin.obj(w, b, X, z, lambda1, lambda2, a = rep(1, nrow(X)), d = rep(1,
 \item{d}{p-by-1 vector of feature weights}
 
 \item{P}{p-by-p feature-feature penalty matrix}
+
+\item{m}{p-by-1 vector of translation coefficients}
 }
 \value{
 The objective function value.
@@ -37,7 +39,7 @@ See details.
 Computes the objective function value according to
 \deqn{ \frac{1}{2n} \sum_i a_i (z_i - (w^T x_i + b))^2 + R(w) }
  where
-\deqn{ R(w) = \lambda_1 \sum_j d_j |w_j| + \frac{\lambda_2}{2} w^T P w }
+\deqn{ R(w) = \lambda_1 \sum_j d_j |w_j| + \frac{\lambda_2}{2} (w-m)^T P (w-m) }
 }
 \seealso{
 \code{\link{gelnet.lin}}
