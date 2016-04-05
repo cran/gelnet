@@ -26,9 +26,9 @@ void updateFits( double* X, double* K, double* S, double* Kwm,
 }
 
 // Computes the GELNET objective function value
-void gelnet_base_obj( double* S, double* z, double* a, double* d, double* Kwm,
-		      double* m, double* w, double* lambda1p,
-		      double* lambda2p, int* np, int* pp, double* res )
+void gelnet_lin_obj( double* S, double* z, double* a, double* d, double* Kwm,
+		     double* m, double* w, double* lambda1p,
+		     double* lambda2p, int* np, int* pp, double* res )
 {
   int n = *np;
   int p = *pp;
@@ -58,17 +58,31 @@ void gelnet_base_obj( double* S, double* z, double* a, double* d, double* Kwm,
 // Computes the GELNET logistic regression objection function value
 void gelnet_logreg_obj( double* S, int* y, double* d, double* Kwm, double* m,
 			double* w, double* lambda1p, double* lambda2p, 
-			int* np, int* pp, double* res )
+			int* np, int* pp, double* res, int* bBalanced )
 {
   int n = *np;
   int p = *pp;
   double lambda1 = *lambda1p;
   double lambda2 = *lambda2p;
 
-  // Loss term
-  double loss = 0.0;
+  // Loss term on a per-class basis
+  double lossp = 0.0;
+  double lossn = 0.0;
+  int nneg = 0;
   for( int i = 0; i < n; ++i )
-    loss -= y[i]*S[i] - log1p( exp(S[i]) );
+    {
+      if( y[i] == 0 )
+	{ lossn += log1p( exp(S[i]) ); nneg++; }
+      else
+	lossp += log1p( exp(S[i]) ) - y[i]*S[i];
+    }
+
+  // Overall loss term
+  double loss = 0.0;
+  if( *bBalanced )
+    loss = 0.5 * (lossp / (n - nneg) + lossn / nneg);
+  else
+    loss = (lossp + lossn) / n;
 
   // Regularization terms
   double regL1 = 0.0;
@@ -79,14 +93,14 @@ void gelnet_logreg_obj( double* S, int* y, double* d, double* Kwm, double* m,
       regL2 += (w[j] - m[j]) * Kwm[j];
     }
 
-  *res = loss / n + lambda1 * regL1 + 0.5 * lambda2 * regL2;
+  *res = loss + lambda1 * regL1 + 0.5 * lambda2 * regL2;
 }
 
 // Computes the new value for coordinate *jp
 void computeCoord( double* X, double* z, double* a, double* d, double* K,
 		   double* lambda1p, double* lambda2p, double* S,
 		   double* Kwm, int* np, int* pp, int* jp, double* w, 
-		   double* work_a1, double* res )
+		   double* work_a1, double* res, int* bNonneg )
 {
   // Dereference
   int n = *np; int p = *pp; int j = *jp;
@@ -106,6 +120,8 @@ void computeCoord( double* X, double* z, double* a, double* d, double* K,
   num /= n;
   num -= lambda2 * (Kwm[j] - K[j+j*p] * w[j]);
   sthresh( &num, lambda1*d[j] );
+
+  // Early stopping
   if( num == 0.0 ) { *res = 0.0; return; }
 
   // Compute the denominator
@@ -118,14 +134,18 @@ void computeCoord( double* X, double* z, double* a, double* d, double* K,
   denom += lambda2 * K[j+j*p];
 
   *res = num / denom;
+
+  // Check the non-negativity constraint
+  if( *bNonneg && *res < 0.0 )
+    *res = 0.0;
 }
 
 // Optimizes the GELNET objective via coordinate descent
-void gelnet_base_opt( double* X, double* z, double* a, double* d, double* K, 
+void gelnet_lin_opt( double* X, double* z, double* a, double* d, double* K, 
 		      double* m, double* lambda1p, double* lambda2p,
 		      double* S, double* Kwm, int* np, int* pp,
 		      int* max_iter, double* eps, int* fix_bias,
-		      double* w, double* b, int* bSilentp )
+		     double* w, double* b, int* bSilentp, int* bNonneg )
 {
   // Dereference
   int n = *np; int p = *pp;
@@ -139,7 +159,7 @@ void gelnet_base_opt( double* X, double* z, double* a, double* d, double* K,
 
   // Compute the initial objective function value
   double fprev;
-  gelnet_base_obj( S, z, a, d, Kwm, m, w, lambda1p, lambda2p, np, pp, &fprev );
+  gelnet_lin_obj( S, z, a, d, Kwm, m, w, lambda1p, lambda2p, np, pp, &fprev );
 
   // Perform coordinate descent
   int iter; double f;
@@ -151,7 +171,7 @@ void gelnet_base_opt( double* X, double* z, double* a, double* d, double* K,
 	  // Perform the update
 	  double wj_old = w[j];
 	  computeCoord( X, z, a, d, K, lambda1p, lambda2p, S, Kwm,
-			np, pp, &j, w, work_a1, w+j );
+			np, pp, &j, w, work_a1, w+j, bNonneg );
 
 	  // Update fits and L2-norm penalty term accordingly
 	  double wj_diff = w[j] - wj_old;
@@ -184,7 +204,7 @@ void gelnet_base_opt( double* X, double* z, double* a, double* d, double* K,
 	}
 
       // Compute the objective function value and check the stopping criterion
-      gelnet_base_obj( S, z, a, d, Kwm, m, w, lambda1p, lambda2p, np, pp, &f );
+      gelnet_lin_obj( S, z, a, d, Kwm, m, w, lambda1p, lambda2p, np, pp, &f );
       if( fabs( f - fprev ) / fabs( fprev ) < *eps ) break;
       else fprev = f;
     }
@@ -197,8 +217,8 @@ void gelnet_base_opt( double* X, double* z, double* a, double* d, double* K,
 void gelnet_logreg_opt( double* X, int* y, double* d, double* K, double* m,
 			double* lambda1p, double* lambda2p,
 			double* S, double* Kwm, int* np, int* pp,
-			int* max_iter, double* eps,
-			double* w, double* b, int* bSilentp )
+			int* max_iter, double* eps, double* w, double* b,
+			int* bSilentp, int* bBalanced, int* bNonneg )
 {
   int n = *np; int p = *pp;
   double lambda1 = *lambda1p;
@@ -214,7 +234,16 @@ void gelnet_logreg_opt( double* X, int* y, double* d, double* K, double* m,
 
   // Compute the initial objective function value
   double fprev;
-  gelnet_logreg_obj( S, y, d, Kwm, m, w, lambda1p, lambda2p, np, pp, &fprev );
+  gelnet_logreg_obj( S, y, d, Kwm, m, w, lambda1p, lambda2p, np, pp, &fprev, bBalanced );
+
+  // Count the number of samples in each class
+  double npos = 0.0;
+  double nneg = 0.0;
+  for( int i = 0; i < n; ++i )
+    {
+      if( y[i] == 0 ) nneg += 1.0;
+      else npos += 1.0;
+    }
 
   // Run the optimization
   int iter; double f;
@@ -239,15 +268,27 @@ void gelnet_logreg_opt( double* X, int* y, double* d, double* K, double* m,
 	  z[i] = S[i] + (y[i] - pr) / a[i];
 	}
 
+      // Rebalance the sample weights according to the class counts
+      if( *bBalanced )
+	{
+	  for( int i = 0; i < n; ++i )
+	    {
+	      if( y[i] == 0 )
+		a[i] *= n / (nneg*2);
+	      else
+		a[i] *= n / (npos*2);
+	    }
+	}
+
       // Perform coordinate descent
       int nIter = iter * 2;
       int bSilent = 1;
       int fix_bias = 0;
-      gelnet_base_opt( X, z, a, d, K, m, lambda1p, lambda2p, S, Kwm, np, pp,
-		       &nIter, eps, &fix_bias, w, b, &bSilent );
+      gelnet_lin_opt( X, z, a, d, K, m, lambda1p, lambda2p, S, Kwm, np, pp,
+		      &nIter, eps, &fix_bias, w, b, &bSilent, bNonneg );
 
       // Compute the objective function value and check the stopping criterion
-      gelnet_logreg_obj( S, y, d, Kwm, m, w, lambda1p, lambda2p, np, pp, &f );
+      gelnet_logreg_obj( S, y, d, Kwm, m, w, lambda1p, lambda2p, np, pp, &f, bBalanced );
       if( fabs( f - fprev ) / fabs( fprev ) < *eps ) break;
       else fprev = f;
     }
